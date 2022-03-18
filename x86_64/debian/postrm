@@ -1,0 +1,4 @@
+sed -i '/cleanup/d' /var/spool/cron/crontabs/root
+rm /usr/local/cleanup-ds4.sh
+rm /usr/local/ds4.conf
+rm /usr/games/scuf-enabled.sh

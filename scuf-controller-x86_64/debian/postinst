@@ -1,0 +1,75 @@
+echo "*/2 * * * * /usr/local/cleanup-ds4.sh" >> /var/spool/cron/crontabs/root
+
+touch /usr/local/cleaup-ds4.sh
+chmod 755 /usr/local/cleanup-ds4.sh
+cat <<'EOF' >>/usr/local/cleanup-ds4.sh
+#!/bin/bash
+
+INPUT="/dev/input/"
+if ls "$INPUT" | grep -q "js1"; then
+       rm /dev/input/js0
+fi
+EOF
+
+SCUF=`ls /dev/input/by-id/ | grep Gamepad | grep event`
+
+touch /usr/local/ds4.conf
+cat <<EOF >>/usr/local/ds4.conf
+# Playstation 4 Controller
+# ========================
+
+[xboxdrv]
+# Using the "by-id" name is recommended, as it is static, while an
+# /dev/input/eventX name can change depending on what other USB
+# devices you use.
+evdev = /dev/input/by-id/$SCUF
+
+# This displays events received from the controller, if you are
+# working on a configuration you want to set this to true:
+evdev-debug = false
+
+# Grabbing the device prevents other applications from accessing it,
+# this is needed most of the time to prevent applications from
+# receiving events twice.
+evdev-grab = true
+
+[evdev-absmap]
+ABS_HAT0X = DPAD_X
+ABS_HAT0Y = DPAD_Y
+
+ABS_X = X1
+ABS_Y = Y1
+
+ABS_Z = X2
+ABS_RZ = Y2
+
+ABS_RX = LT
+ABS_RY = RT
+
+[evdev-keymap]
+BTN_TL = LT
+BTN_TR = RT
+BTN_SOUTH = X
+BTN_NORTH = Y
+BTN_EAST = A
+BTN_C = B
+
+BTN_WEST = LB
+BTN_Z = RB
+
+BTN_SELECT = TL
+BTN_START = TR
+
+BTN_TR2 = Start
+
+BTN_TL2 = Back
+
+BTN_MODE = Guide
+EOF
+
+touch /usr/games/scuf-enabled.sh
+chmod 755 /usr/games/scuf-enabled.sh
+cat << EOF >>/usr/games/scuf-enabled.sh
+#!/bin/bash
+nohup xboxdrv -c /usr/local/ds4.conf --mimic-xpad --axismap -y1=y1 --axismap -y2=y2 --silent &
+EOF

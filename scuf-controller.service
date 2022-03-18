@@ -1,0 +1,11 @@
+[Unit]
+Description=scuf_controller
+After=network.target
+
+[Service]
+Type=forking
+User=root
+ExecStart=/bin/bash /usr/games/scuf-enable.sh
+
+[Install]
+WantedBy=default.target

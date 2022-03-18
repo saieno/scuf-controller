@@ -1,0 +1,29 @@
+Format: 1.8
+Source: scuf-controller
+Binary: scuf-controller
+Architecture: source amd64
+Version: 1.0
+Distribution: focal
+Urgency: low
+Maintainer: Saieno
+Description:
+ scuf-controller - A simple service configuration to enable SCUF Vantage 2 and Duals
+Changes:
+ scuf-controller (1.0) focal; urgency=low
+ .
+   * Initial implementation
+Checksums-Sha1:
+ c5edf540d9f7d6333a00b77a74f09458ac298afb 511 scuf-controller_1.0.dsc
+ f7c21eba2db4964f4f0db184338a8637b86d9d95 8472 scuf-controller_1.0.tar.gz
+ 6de36fb0af3a531f969277324528bc105973dd00 13966 scuf-controller_1.0_amd64.buildinfo
+ d44cf78db26d3ccbdb62f6288befac87d30fc21e 2320 scuf-controller_1.0_amd64.deb
+Checksums-Sha256:
+ beaea357f5f6a9a048c0738410c4d6b020d4169a877dad8c5f42c1ef70299fb5 511 scuf-controller_1.0.dsc
+ 39d5e6ed42c7640f8a89aadcd5816ebfffc3837ffe5135b65318d46d1a3ae1bf 8472 scuf-controller_1.0.tar.gz
+ 4aae40963e8bf5160924007c5c3b1396e79491d58ff28311c4d8de370662cff5 13966 scuf-controller_1.0_amd64.buildinfo
+ 18d7b7bafe7c5db09505bc47ac13025d9064697b221ae94dd862aa2333464650 2320 scuf-controller_1.0_amd64.deb
+Files:
+ 1b02609d1794ff25491f2592fcb0c07f 511 - optional scuf-controller_1.0.dsc
+ fbaba03adbee2b5e1265b2054c8c3b47 8472 - optional scuf-controller_1.0.tar.gz
+ 7a85fa734af3d216cc10f3eeaa9fe193 13966 - optional scuf-controller_1.0_amd64.buildinfo
+ 17b420174901b9dff832aac61e881638 2320 - optional scuf-controller_1.0_amd64.deb
