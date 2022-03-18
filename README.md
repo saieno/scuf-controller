@@ -7,7 +7,7 @@ scuf-controller is a package that configures generic and official Dualshock cont
 On Debian/Ubuntu based distros, download the .deb package and install as you normally would. If using the command line, you can run the following:
 
 ```bash
-dpkg -i scuf-controller_1.0_all.deb
+sudo dpkg -i scuf-controller_1.0_all.deb
 ```
 
 ## Usage
@@ -15,18 +15,20 @@ dpkg -i scuf-controller_1.0_all.deb
 
 ```bash
 # start service
-systemctl start scuf-controller
+sudo systemctl start scuf-controller
 
 # check service status
-systemctl status scuf-controller
+sudo systemctl status scuf-controller
 
 # restart service
-systemctl restart scuf-controller
+sudo systemctl restart scuf-controller
 
 # stop service
-systemctl stop scuf-controller
+sudo systemctl stop scuf-controller
 ```
 Once the service is started, you'll want to wait a minute for the cron to clean up the controller inputs. If you have the service enabled to run at system start-up, then the clean up should be completed by the time you get into a game.
+#### Note: When using with Steam, be sure to disable Steam Input for Xbox Controllers.
+*You can do so by right clicking the game, going to Properties, Controller, and make sure Xbox Controller is disabled or blank.*
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
