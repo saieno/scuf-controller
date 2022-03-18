@@ -17,6 +17,9 @@ dpkg -i scuf-controller_1.0_all.deb
 # start service
 systemctl start scuf-controller
 
+# check service status
+systemctl status scuf-controller
+
 # restart service
 systemctl restart scuf-controller
 
