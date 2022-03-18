@@ -1,6 +1,6 @@
 # Scuf Controller - DualShock Support for Linux
 
-scuf-controller is a package that configures generic and official Dualshock controllers for use within Linux. This works for Official DualShock 4 and DualShock 5 controllers, SCUF brand controllers, and other generic DualShock controllers. 
+scuf-controller is a package that configures generic and official Dualshock controllers as Xbox Controllers for use within Linux. This works for Official DualShock 4 and DualShock 5 controllers, SCUF brand controllers, and other generic DualShock controllers. 
 
 ## Installation
 
