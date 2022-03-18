@@ -13,17 +13,17 @@ Changes:
  .
    * Initial implementation
 Checksums-Sha1:
- c5edf540d9f7d6333a00b77a74f09458ac298afb 511 scuf-controller_1.0.dsc
- f7c21eba2db4964f4f0db184338a8637b86d9d95 8472 scuf-controller_1.0.tar.gz
- 6de36fb0af3a531f969277324528bc105973dd00 13966 scuf-controller_1.0_amd64.buildinfo
- d44cf78db26d3ccbdb62f6288befac87d30fc21e 2320 scuf-controller_1.0_amd64.deb
+ 870fe305b1b457e915cbbff74aeb82ef8dc73529 511 scuf-controller_1.0.dsc
+ 6fb1da07a8b3b605c24837395ec3ff8eaceaecba 1564 scuf-controller_1.0.tar.gz
+ b54771579ff5f54cf2ff3244d05d3327da710501 13966 scuf-controller_1.0_amd64.buildinfo
+ 536cad01fa064080bf9bb87f4ad058650eb1bfa8 2320 scuf-controller_1.0_amd64.deb
 Checksums-Sha256:
- beaea357f5f6a9a048c0738410c4d6b020d4169a877dad8c5f42c1ef70299fb5 511 scuf-controller_1.0.dsc
- 39d5e6ed42c7640f8a89aadcd5816ebfffc3837ffe5135b65318d46d1a3ae1bf 8472 scuf-controller_1.0.tar.gz
- 4aae40963e8bf5160924007c5c3b1396e79491d58ff28311c4d8de370662cff5 13966 scuf-controller_1.0_amd64.buildinfo
- 18d7b7bafe7c5db09505bc47ac13025d9064697b221ae94dd862aa2333464650 2320 scuf-controller_1.0_amd64.deb
+ 6b9859f395ff06f441bfc54e346ba20a9bc8ea544284084dc31955a02817d3c1 511 scuf-controller_1.0.dsc
+ cfaa95509290b74ecda5d31bbbe1ff72e0256ca91f68d86c69961be5b9073793 1564 scuf-controller_1.0.tar.gz
+ b4d70c31ee67972a641625851eb4801ff9adce3f9301bb3a2bd9bf3d4b116230 13966 scuf-controller_1.0_amd64.buildinfo
+ 9a37a6a9c3291d0e920f2baf586e53f926c3ad2eed592b031ea797fdb11663ca 2320 scuf-controller_1.0_amd64.deb
 Files:
- 1b02609d1794ff25491f2592fcb0c07f 511 - optional scuf-controller_1.0.dsc
- fbaba03adbee2b5e1265b2054c8c3b47 8472 - optional scuf-controller_1.0.tar.gz
- 7a85fa734af3d216cc10f3eeaa9fe193 13966 - optional scuf-controller_1.0_amd64.buildinfo
- 17b420174901b9dff832aac61e881638 2320 - optional scuf-controller_1.0_amd64.deb
+ 5744c7c8c58a98a3040c4fc6ad56ff38 511 - optional scuf-controller_1.0.dsc
+ 8ed44aa6982184d6dcce38d52d7700c0 1564 - optional scuf-controller_1.0.tar.gz
+ 5affc13733cc5f7674ebf82539a15b13 13966 - optional scuf-controller_1.0_amd64.buildinfo
+ ad816d4d52a9a873a729a4d6581b9e29 2320 - optional scuf-controller_1.0_amd64.deb

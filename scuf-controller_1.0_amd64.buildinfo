@@ -4,17 +4,17 @@ Binary: scuf-controller
 Architecture: amd64 source
 Version: 1.0
 Checksums-Md5:
- 1b02609d1794ff25491f2592fcb0c07f 511 scuf-controller_1.0.dsc
- 17b420174901b9dff832aac61e881638 2320 scuf-controller_1.0_amd64.deb
+ 5744c7c8c58a98a3040c4fc6ad56ff38 511 scuf-controller_1.0.dsc
+ ad816d4d52a9a873a729a4d6581b9e29 2320 scuf-controller_1.0_amd64.deb
 Checksums-Sha1:
- c5edf540d9f7d6333a00b77a74f09458ac298afb 511 scuf-controller_1.0.dsc
- d44cf78db26d3ccbdb62f6288befac87d30fc21e 2320 scuf-controller_1.0_amd64.deb
+ 870fe305b1b457e915cbbff74aeb82ef8dc73529 511 scuf-controller_1.0.dsc
+ 536cad01fa064080bf9bb87f4ad058650eb1bfa8 2320 scuf-controller_1.0_amd64.deb
 Checksums-Sha256:
- beaea357f5f6a9a048c0738410c4d6b020d4169a877dad8c5f42c1ef70299fb5 511 scuf-controller_1.0.dsc
- 18d7b7bafe7c5db09505bc47ac13025d9064697b221ae94dd862aa2333464650 2320 scuf-controller_1.0_amd64.deb
+ 6b9859f395ff06f441bfc54e346ba20a9bc8ea544284084dc31955a02817d3c1 511 scuf-controller_1.0.dsc
+ 9a37a6a9c3291d0e920f2baf586e53f926c3ad2eed592b031ea797fdb11663ca 2320 scuf-controller_1.0_amd64.deb
 Build-Origin: Ubuntu
 Build-Architecture: amd64
-Build-Date: Fri, 18 Mar 2022 03:42:13 -0500
+Build-Date: Fri, 18 Mar 2022 12:40:39 -0500
 Build-Tainted-By:
  merged-usr-via-symlinks
  usr-local-has-libraries
@@ -404,4 +404,4 @@ Installed-Build-Depends:
 Environment:
  DEB_BUILD_OPTIONS="parallel=16"
  LANG="en_US.UTF-8"
- SOURCE_DATE_EPOCH="1647592932"
+ SOURCE_DATE_EPOCH="1647625238"

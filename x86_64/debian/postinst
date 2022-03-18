@@ -11,7 +11,7 @@ if ls "$INPUT" | grep -q "js1"; then
 fi
 EOF
 
-SCUF=`ls /dev/input/by-id/ | grep Gamepad | grep event`
+SCUF=`ls /dev/input/by-id/ | grep joystick | grep event`
 
 touch /usr/local/ds4.conf
 cat <<EOF >/usr/local/ds4.conf
