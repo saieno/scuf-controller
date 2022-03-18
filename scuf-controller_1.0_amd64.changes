@@ -1,7 +1,7 @@
 Format: 1.8
 Source: scuf-controller
 Binary: scuf-controller
-Architecture: source amd64
+Architecture: source all
 Version: 1.0
 Distribution: focal
 Urgency: low
@@ -13,17 +13,17 @@ Changes:
  .
    * Initial implementation
 Checksums-Sha1:
- b3f0d6da00b2dbf9dfe33e67aa0b6679abd60c2f 511 scuf-controller_1.0.dsc
- 9959f694cecb699c32ff5f58e430004dfc210491 1767 scuf-controller_1.0.tar.gz
- 2f072a4a2fc19eeb10846080f297d2caff68c178 13966 scuf-controller_1.0_amd64.buildinfo
- 88275b28c44e41cb9fb352054029c5f78f792cea 2472 scuf-controller_1.0_amd64.deb
+ a296a49998af4a67fe14712c822275b9ba30b8ea 507 scuf-controller_1.0.dsc
+ 72bfe1ef1df4a189ec4cd0fbb455e8ebb5d51fb0 1768 scuf-controller_1.0.tar.gz
+ c701c9db0f54a89d2fac15ce5e1ba5b7a7d20f73 2472 scuf-controller_1.0_all.deb
+ 6dd4c83018146bbcfe15d2a2a25460470f0c61e8 13958 scuf-controller_1.0_amd64.buildinfo
 Checksums-Sha256:
- 7099dc2203581e02430bda2a5b39a6b0f5bc6ae6a411f3c606755a1e87fdf6c5 511 scuf-controller_1.0.dsc
- f1b14b44fd8dbf7097ef0312ff7de28c4bafc17c54ab0c9f963ae1d0ec65af37 1767 scuf-controller_1.0.tar.gz
- b72995aa985ccfd2844fd6ef2b274ae11e1ae84fb296b809a5dce3bd0b0c70f1 13966 scuf-controller_1.0_amd64.buildinfo
- 636f01cb7f53ad90d6f783b1340f91a6c015090ddb0c748af576b88f74fab2de 2472 scuf-controller_1.0_amd64.deb
+ 5b9494144ab1f8d1482d02ac79bf2c31f261fc694c543ce29b6603370d6b019b 507 scuf-controller_1.0.dsc
+ f1f759eb86a9d764935d24260098a48872a8d212e7005f2788a1352fcceb2e08 1768 scuf-controller_1.0.tar.gz
+ 409c86488176812d4f92539f0b5b79063598dacb00cfb807c3010b1ffd76b35c 2472 scuf-controller_1.0_all.deb
+ df5e4f23e5425724dbed6e8080a433378969b7d9d72a01653f885d0fd6b9803e 13958 scuf-controller_1.0_amd64.buildinfo
 Files:
- 7c2cb054b173db4f143f9a891546a930 511 - optional scuf-controller_1.0.dsc
- 935c72f48293acb83987a70a881f5b48 1767 - optional scuf-controller_1.0.tar.gz
- 0d5f60984c68b4f03ac44a21e9451e45 13966 - optional scuf-controller_1.0_amd64.buildinfo
- d0f2858b740d939d7cfb7f78630203c7 2472 - optional scuf-controller_1.0_amd64.deb
+ 9c1f53c78ad89cf3d121316d1bf4fb3f 507 - optional scuf-controller_1.0.dsc
+ 30c690655c174dbbca7e60b0d6171ef8 1768 - optional scuf-controller_1.0.tar.gz
+ 07282277ac1890894f936a02df5d2918 2472 - optional scuf-controller_1.0_all.deb
+ f982b4cda6c5fa56892a2ef97896ca17 13958 - optional scuf-controller_1.0_amd64.buildinfo

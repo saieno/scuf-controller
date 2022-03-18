@@ -1,6 +1,6 @@
 Package: scuf-controller
 Version: 1.0
-Architecture: amd64
+Architecture: all
 Maintainer: Saieno
 Installed-Size: 16
 Depends: xboxdrv
