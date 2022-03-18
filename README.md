@@ -13,4 +13,4 @@ systemctl status scuf-controller
 systemctl stop scuf-controller
 
 
-If your controller becomes unplugged, you may have to restart the service once its plugged in again.
+If your controller becomes unplugged, you may have to restart the service once its plugged in again. To use with Steam, be sure to disable Steam Input for Xbox 360 Controllers. 
