@@ -1,8 +1,0 @@
-Package: scuf-controller
-Version: 1.0
-Architecture: all
-Maintainer: Saieno
-Installed-Size: 16
-Depends: xboxdrv
-Priority: optional
-Description: A simple service configuration to enable SCUF Vantage 2 and Dualshock 4 Controllers to work natively with proper input as an Xbox 360 controller, and without double input.
