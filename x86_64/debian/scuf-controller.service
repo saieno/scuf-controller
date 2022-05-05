@@ -1,6 +1,6 @@
 [Unit]
 Description=scuf_controller
-After=network.target
+After=syslog.target network.target multi-user.target nodm.service
 
 [Service]
 Type=forking
