@@ -1,0 +1,33 @@
+# Maintainer: Saieno <saieno86@gmail.com>
+#
+# NOTE: sha256sums is SKIP because no release tarball existed when this was
+# written. Before submitting to the AUR, tag a release and run `updpkgsums`
+# in this directory to fill in the real checksum.
+
+pkgname=scuf-controller
+pkgver=2.1
+pkgrel=1
+pkgdesc="Present DualShock-style gamepads to Linux as Xbox 360 controllers"
+arch=('any')
+url="https://github.com/saieno/scuf-controller"
+license=('GPL-3.0-or-later')
+depends=('python' 'python-evdev' 'systemd')
+makedepends=('make')
+backup=('etc/scuf-controller.conf')
+install="${pkgname}.install"
+source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+check() {
+	cd "${pkgname}-${pkgver}"
+	make check
+}
+
+package() {
+	cd "${pkgname}-${pkgver}"
+	# The Makefile's defaults already match Arch's layout: /usr/bin,
+	# /usr/lib/systemd/system, /usr/lib/udev/rules.d, /usr/lib/modules-load.d.
+	make install DESTDIR="${pkgdir}"
+	install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+	install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+}

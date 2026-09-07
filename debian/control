@@ -1,0 +1,26 @@
+Source: scuf-controller
+Section: utils
+Priority: optional
+Maintainer: Saieno <saieno86@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/saieno/scuf-controller
+
+Package: scuf-controller
+Architecture: all
+Depends: ${misc:Depends},
+         python3,
+         python3-evdev,
+Description: DualShock-style gamepads as Xbox 360 controllers
+ Presents a SCUF, DualShock 4, DualSense or generic DualShock-clone gamepad to
+ Linux as a Microsoft Xbox 360 controller, so that games and launchers which
+ only understand XInput see the correct buttons and axes.
+ .
+ A systemd service takes exclusive control of the physical pad and re-emits
+ corrected events on a virtual controller. Because the physical device is
+ grabbed, its raw events stop reaching applications, which removes the
+ duplicated input that these controllers otherwise produce.
+ .
+ Both the official Sony layout and the shifted layout that generic clones
+ report on hid-generic are supported, and are detected automatically.
