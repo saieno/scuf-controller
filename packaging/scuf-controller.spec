@@ -4,7 +4,7 @@
 %{!?_modulesloaddir:%global _modulesloaddir %{_prefix}/lib/modules-load.d}
 
 Name:           scuf-controller
-Version:        2.1
+Version:        2.0
 Release:        1%{?dist}
 Summary:        Present DualShock-style gamepads to Linux as Xbox 360 controllers
 
@@ -78,13 +78,10 @@ make install DESTDIR=%{buildroot} \
 %{_mandir}/man1/scuf-controller.1*
 
 %changelog
-* Sun Sep 06 2026 Saieno <saieno86@gmail.com> - 2.1-1
-- Controller layouts moved into profile files; adding a pad needs no code change
-- Add --dump-profile, --list-profiles and --profile-dir
-- Allow axis overrides in scuf-controller.conf
-- Install through a shared Makefile
-
 * Sun Sep 06 2026 Saieno <saieno86@gmail.com> - 2.0-1
 - Replace xboxdrv, removed from distributions during the Python 2 deprecation,
   with a self-contained python3-evdev daemon
 - Grab the pad instead of deleting /dev/input/js0 from a cron job
+- Describe controller layouts in profile files; adding a pad needs no code change
+- Add --dump-profile, --list-profiles, --profile-dir, --list and --debug
+- Install through a Makefile shared with the Debian and Arch packaging

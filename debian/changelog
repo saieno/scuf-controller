@@ -1,22 +1,3 @@
-scuf-controller (2.1) resolute; urgency=medium
-
-  * Move controller layouts out of the daemon into profile files under
-    /usr/share/scuf-controller/profiles and /etc/scuf-controller.d. Adding a
-    controller no longer needs a code change.
-  * Match profiles by USB id, device name or capability signature, most
-    specific first, so a profile written for one pad beats a generic layout
-    that merely happens to fit.
-  * Add --dump-profile to generate a starter profile from a connected pad,
-    --list-profiles to show what is installed, and --profile-dir for testing
-    a profile before installing it.
-  * Allow axis overrides in /etc/scuf-controller.conf, alongside the existing
-    button overrides.
-  * Install via a distro-agnostic Makefile so the Debian packaging, the Arch
-    PKGBUILD and the RPM spec share one set of paths. debian/rules now runs
-    the profile checks at build time.
-
- -- Saieno <saieno86@gmail.com>  Sun, 06 Sep 2026 20:15:00 -0500
-
 scuf-controller (2.0) resolute; urgency=medium
 
   * Replace xboxdrv with a self-contained python3-evdev daemon. xboxdrv was
@@ -26,15 +7,26 @@ scuf-controller (2.0) resolute; urgency=medium
   * Grab the physical pad rather than deleting /dev/input/js0 from a
     per-minute root cron job. The grab stops duplicate input at the source,
     so the cron entry and its cleanup script are gone.
+  * Describe controller layouts in profile files under
+    /usr/share/scuf-controller/profiles and /etc/scuf-controller.d, matched by
+    USB id, device name or capability signature, most specific first. Adding a
+    controller no longer needs a code change.
+  * Add --dump-profile to generate a starter profile from a connected pad,
+    --list-profiles to show what is installed, --profile-dir to test a profile
+    before installing it, --list to show detected pads, and --debug to log
+    every translated event.
+  * Add /etc/scuf-controller.conf for device selection, profile choice, stick
+    inversion, and local button and axis overrides.
+  * Install through a distro-agnostic Makefile shared by the Debian packaging,
+    the Arch PKGBUILD and the RPM spec, so there is one set of paths rather
+    than three. debian/rules runs the profile checks at build time.
   * Modernise packaging: debhelper compat 13, drop the removed dh-systemd
-    build dependency, declare ${misc:Depends}, add a Section field.
+    build dependency, declare ${misc:Depends}, add Section and copyright, and
+    ship a man page.
   * Run the service as Type=simple with Restart=always instead of a
     Type=forking unit around a backgrounded nohup, so systemd can track it.
-  * Add /etc/scuf-controller.conf for device selection, profile choice,
-    stick inversion and per-button overrides.
-  * Add --list and --debug for identifying pads and checking the mapping.
 
- -- Saieno <saieno86@gmail.com>  Sun, 06 Sep 2026 19:30:00 -0500
+ -- Saieno <saieno86@gmail.com>  Sun, 06 Sep 2026 20:15:00 -0500
 
 scuf-controller (1.1) focal; urgency=low
 

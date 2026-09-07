@@ -5,7 +5,7 @@
 # in this directory to fill in the real checksum.
 
 pkgname=scuf-controller
-pkgver=2.1
+pkgver=2.0
 pkgrel=1
 pkgdesc="Present DualShock-style gamepads to Linux as Xbox 360 controllers"
 arch=('any')

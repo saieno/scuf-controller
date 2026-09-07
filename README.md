@@ -24,7 +24,7 @@ openSUSE, and `py3-evdev` on Alpine. There is nothing to compile.
 Download the `.deb` from the releases page and install it:
 
 ```bash
-sudo apt install ./scuf-controller_2.1_all.deb
+sudo apt install ./scuf-controller_2.0_all.deb
 ```
 
 Using `apt install ./…` rather than `dpkg -i` lets apt pull in `python3-evdev`
@@ -60,7 +60,7 @@ leaving your `/etc` files alone. `make check` validates the script and profiles.
 ```bash
 sudo apt install devscripts debhelper
 dpkg-buildpackage -us -uc -b
-sudo apt install ../scuf-controller_2.1_all.deb
+sudo apt install ../scuf-controller_2.0_all.deb
 ```
 
 ## Usage
@@ -242,11 +242,6 @@ no longer satisfy its dependency and will not install.
 Removing the 1.x package cleans up its files. If you had hand-edited
 `/usr/local/ds4.conf`, port those changes to a profile in
 `/etc/scuf-controller.d/`.
-
-**Upgrading from 2.0 to 2.1?** Layouts moved from the daemon into profile
-files. If you pinned `profile = generic` or `profile = sony` in
-`/etc/scuf-controller.conf`, change it to `generic-dualshock` or
-`sony-dualshock`, or set it back to `auto`. Nothing else changed.
 
 ## A note on button codes
 

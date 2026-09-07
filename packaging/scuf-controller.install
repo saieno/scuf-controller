@@ -12,14 +12,14 @@ MSG
 }
 
 post_upgrade() {
-	# Profiles moved out of the daemon in 2.1; a pinned profile name in
-	# scuf-controller.conf from 2.0 ("generic" / "sony") no longer resolves.
-	if [ -n "$2" ] && [ "$(vercmp "$2" 2.1)" -lt 0 ]; then
+	# 1.x drove the pad with xboxdrv and installed a root cron job; 2.0 uses
+	# neither. Nothing is migrated automatically.
+	if [ -n "$2" ] && [ "$(vercmp "$2" 2.0)" -lt 0 ]; then
 		cat <<'MSG'
-==> Layouts are now profile files in /usr/share/scuf-controller/profiles.
-==> If you pinned `profile = generic` or `profile = sony` in
-==> /etc/scuf-controller.conf, change it to `generic-dualshock` or
-==> `sony-dualshock`, or set it back to `auto`.
+==> 2.0 replaces xboxdrv with a built-in evdev daemon. If you carried settings
+==> in /usr/local/ds4.conf, port them to a profile in /etc/scuf-controller.d.
+==> Check that the old cron entry is gone:
+==>     sudo crontab -l | grep cleanup-ds4
 MSG
 	fi
 }
