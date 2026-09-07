@@ -1,0 +1,801 @@
+#!/usr/bin/python3
+"""Present a DualShock-style gamepad to Linux as an Xbox 360 controller.
+
+Reads the physical pad's evdev node, grabs it so nothing else sees the raw
+(mis-mapped) events, and re-emits corrected events on a virtual uinput device
+that identifies itself as a Microsoft X-Box 360 pad.
+
+Layouts live in profile files rather than in this script, so adding a
+controller is a matter of dropping a file into /etc/scuf-controller.d. See
+--dump-profile for a starting point.
+"""
+
+import argparse
+import configparser
+import errno
+import glob
+import os
+import re
+import selectors
+import signal
+import sys
+import time
+
+from evdev import AbsInfo, InputDevice, UInput, ecodes as e, list_devices
+
+CONFIG_PATH = "/etc/scuf-controller.conf"
+PROFILE_DIRS = ("/usr/share/scuf-controller/profiles", "/etc/scuf-controller.d")
+
+VIRTUAL_NAME = "Microsoft X-Box 360 pad"
+VIRTUAL_VENDOR = 0x045E
+VIRTUAL_PRODUCT = 0x028E
+VIRTUAL_VERSION = 0x0110
+
+STICK_MIN, STICK_MAX = -32768, 32767
+TRIGGER_MIN, TRIGGER_MAX = 0, 255
+
+STICK, TRIGGER, HAT = "stick", "trigger", "hat"
+KINDS = (STICK, TRIGGER, HAT)
+
+# The capability set of a real xpad-driven Xbox 360 controller. SDL, Steam and
+# the various controller databases key off this exact shape, so it is
+# reproduced verbatim rather than trimmed to what a given pad happens to use.
+#
+# Note the button codes: xpad reports X as BTN_X (0x133) and Y as BTN_Y
+# (0x134). Those legacy aliases are BTN_NORTH and BTN_WEST respectively, which
+# is positionally backwards from the modern semantic names -- but it is what
+# every Xbox mapping in the wild expects, so we match xpad, not the semantics.
+XBOX360_BUTTONS = (
+    e.BTN_A, e.BTN_B, e.BTN_X, e.BTN_Y,
+    e.BTN_TL, e.BTN_TR,
+    e.BTN_SELECT, e.BTN_START, e.BTN_MODE,
+    e.BTN_THUMBL, e.BTN_THUMBR,
+)
+XBOX360_AXES = (
+    (e.ABS_X, AbsInfo(0, STICK_MIN, STICK_MAX, 16, 128, 0)),
+    (e.ABS_Y, AbsInfo(0, STICK_MIN, STICK_MAX, 16, 128, 0)),
+    (e.ABS_RX, AbsInfo(0, STICK_MIN, STICK_MAX, 16, 128, 0)),
+    (e.ABS_RY, AbsInfo(0, STICK_MIN, STICK_MAX, 16, 128, 0)),
+    (e.ABS_Z, AbsInfo(0, TRIGGER_MIN, TRIGGER_MAX, 0, 0, 0)),
+    (e.ABS_RZ, AbsInfo(0, TRIGGER_MIN, TRIGGER_MAX, 0, 0, 0)),
+    (e.ABS_HAT0X, AbsInfo(0, -1, 1, 0, 0, 0)),
+    (e.ABS_HAT0Y, AbsInfo(0, -1, 1, 0, 0, 0)),
+)
+XBOX360_CAPS = {e.EV_KEY: list(XBOX360_BUTTONS), e.EV_ABS: list(XBOX360_AXES)}
+XBOX360_AXIS_CODES = frozenset(code for code, _ in XBOX360_AXES)
+
+# Trigger axes may be driven by a digital button as well as an analog axis.
+TRIGGER_AXES = frozenset((e.ABS_Z, e.ABS_RZ))
+
+
+def _build_name_tables():
+    """Resolve event-code names from the ecodes module's own attributes.
+
+    Going through dir() rather than ecodes.ecodes/ecodes.keys keeps this
+    working across python-evdev versions, which have reorganised those
+    lookup dictionaries more than once.
+    """
+    to_code = {}
+    to_names = {}
+    for attr in dir(e):
+        if not attr.startswith(("BTN_", "KEY_", "ABS_")):
+            continue
+        value = getattr(e, attr)
+        if not isinstance(value, int):
+            continue
+        to_code[attr] = value
+        to_names.setdefault(value, []).append(attr)
+    for names in to_names.values():
+        names.sort()
+    return to_code, to_names
+
+
+NAME_TO_CODE, CODE_TO_NAMES = _build_name_tables()
+
+# BTN_GAMEPAD is an alias for BTN_SOUTH that says nothing about which button
+# was pressed, so it is noise in any human-readable listing.
+_HIDDEN_ALIASES = frozenset(("BTN_GAMEPAD", "BTN_MISC", "BTN_MOUSE", "BTN_JOYSTICK",
+                             "BTN_DIGI", "BTN_WHEEL", "BTN_TRIGGER_HAPPY"))
+
+
+def code_name(code, prefix="BTN_"):
+    """Human-readable name for an event code, showing meaningful aliases."""
+    names = [n for n in CODE_TO_NAMES.get(code, ()) if n.startswith(prefix)]
+    names = [n for n in names if n not in _HIDDEN_ALIASES] or names
+    return "/".join(names) if names else f"{prefix}{code:#x}"
+
+
+def button_name(code):
+    return code_name(code, "BTN_")
+
+
+def axis_name(code):
+    return code_name(code, "ABS_")
+
+
+# The four face buttons have two equally valid names each, and which one is
+# "right" depends on which side of the mapping you are looking at. A physical
+# pad is described in semantic terms (the button nearest you is BTN_SOUTH),
+# while the xpad output it feeds is described in Xbox terms (that same code is
+# BTN_A). Writing generated profiles in the same terms as the hand-written
+# ones keeps the two readable side by side.
+_SOURCE_NAMES = {e.BTN_SOUTH: "BTN_SOUTH", e.BTN_EAST: "BTN_EAST",
+                 e.BTN_NORTH: "BTN_NORTH", e.BTN_WEST: "BTN_WEST"}
+_TARGET_NAMES = {e.BTN_A: "BTN_A", e.BTN_B: "BTN_B",
+                 e.BTN_X: "BTN_X", e.BTN_Y: "BTN_Y"}
+
+
+def canonical_button(code, target=False):
+    """Single unambiguous name for a button, for writing into a profile."""
+    preferred = _TARGET_NAMES if target else _SOURCE_NAMES
+    if code in preferred:
+        return preferred[code]
+    return button_name(code).split("/")[0]
+
+
+def canonical_axis(code):
+    return axis_name(code).split("/")[0]
+
+
+def log(msg):
+    print(msg, flush=True)
+
+
+def warn(msg):
+    print(msg, file=sys.stderr, flush=True)
+
+
+class ProfileError(Exception):
+    pass
+
+
+def _parse_code(token, prefix, what):
+    name = token.strip().upper()
+    code = NAME_TO_CODE.get(name)
+    if code is None or not name.startswith(prefix):
+        raise ProfileError(f"{what}: unknown {prefix}* code {token.strip()!r}")
+    return code
+
+
+def _parse_code_list(raw, prefix, what):
+    return [_parse_code(tok, prefix, what) for tok in raw.split()]
+
+
+class Match:
+    """Conditions a device must satisfy for a profile to apply."""
+
+    def __init__(self, section, where):
+        self.vendor = self.product = None
+        self.name_re = None
+        self.buttons = []
+        self.not_buttons = []
+        self.axes = []
+        if section is None:
+            return
+        for key, raw in section.items():
+            key = key.strip().lower()
+            raw = raw.strip()
+            if key == "vendor":
+                self.vendor = int(raw, 16)
+            elif key == "product":
+                self.product = int(raw, 16)
+            elif key == "name":
+                self.name_re = re.compile(raw)
+            elif key == "buttons":
+                self.buttons = _parse_code_list(raw, "BTN_", where)
+            elif key == "not_buttons":
+                self.not_buttons = _parse_code_list(raw, "BTN_", where)
+            elif key == "axes":
+                self.axes = _parse_code_list(raw, "ABS_", where)
+            else:
+                raise ProfileError(f"{where}: unknown [match] key {key!r}")
+
+    def score(self, dev_keys, dev_axes, info, name):
+        """Confidence that this profile fits, or None if it cannot.
+
+        A USB id is decisive, a name pattern strong, and each capability
+        requirement a small nudge, so a profile written for one specific pad
+        always beats a generic layout that merely happens to fit.
+        """
+        total = 0
+        if self.vendor is not None:
+            if info.vendor != self.vendor:
+                return None
+            total += 100
+        if self.product is not None:
+            if info.product != self.product:
+                return None
+            total += 100
+        if self.name_re is not None:
+            if not self.name_re.search(name):
+                return None
+            total += 50
+        for code in self.buttons:
+            if code not in dev_keys:
+                return None
+            total += 1
+        for code in self.not_buttons:
+            if code in dev_keys:
+                return None
+            total += 1
+        for code in self.axes:
+            if code not in dev_axes:
+                return None
+            total += 1
+        return total
+
+
+class Profile:
+    def __init__(self, name, path, parser):
+        self.name = name
+        self.path = path
+        where = os.path.basename(path)
+
+        meta = parser["profile"] if parser.has_section("profile") else {}
+        self.description = (meta.get("description") or "").strip()
+        try:
+            self.priority = int((meta.get("priority") or "0").strip())
+        except ValueError:
+            raise ProfileError(f"{where}: priority must be an integer")
+
+        self.match = Match(
+            parser["match"] if parser.has_section("match") else None, where
+        )
+
+        self.axes = {}
+        if parser.has_section("axes"):
+            for src_name, raw in parser["axes"].items():
+                src = _parse_code(src_name, "ABS_", where)
+                parts = raw.split()
+                if len(parts) != 2:
+                    raise ProfileError(
+                        f"{where}: [axes] {src_name} needs '<target> <kind>'")
+                dest = _parse_code(parts[0], "ABS_", where)
+                kind = parts[1].strip().lower()
+                if kind not in KINDS:
+                    raise ProfileError(
+                        f"{where}: unknown axis kind {parts[1]!r}, "
+                        f"expected one of {', '.join(KINDS)}")
+                if dest not in XBOX360_AXIS_CODES:
+                    raise ProfileError(
+                        f"{where}: {parts[0]} is not an Xbox 360 axis")
+                self.axes[src] = (dest, kind)
+
+        self.buttons = {}
+        if parser.has_section("buttons"):
+            for src_name, raw in parser["buttons"].items():
+                src = _parse_code(src_name, "BTN_", where)
+                dest = _parse_code(raw, "BTN_", where)
+                if dest not in XBOX360_BUTTONS:
+                    raise ProfileError(
+                        f"{where}: {raw.strip()} is not an Xbox 360 button")
+                self.buttons[src] = dest
+
+        self.digital_triggers = {}
+        if parser.has_section("digital-triggers"):
+            for src_name, raw in parser["digital-triggers"].items():
+                src = _parse_code(src_name, "BTN_", where)
+                dest = _parse_code(raw, "ABS_", where)
+                if dest not in TRIGGER_AXES:
+                    raise ProfileError(
+                        f"{where}: {raw.strip()} is not a trigger axis "
+                        f"(expected ABS_Z or ABS_RZ)")
+                self.digital_triggers[src] = dest
+
+
+def _new_parser():
+    # Option keys are event-code names, so their case has to survive. Inline
+    # comments are enabled because both the shipped profiles and the output of
+    # --dump-profile annotate mappings with the axis range they came from.
+    parser = configparser.ConfigParser(inline_comment_prefixes=("#",))
+    parser.optionxform = str
+    return parser
+
+
+def load_profiles(dirs=PROFILE_DIRS):
+    """Load profiles, letting a later directory shadow an earlier one by name."""
+    by_name = {}
+    for directory in dirs:
+        for path in sorted(glob.glob(os.path.join(directory, "*.conf"))):
+            name = os.path.splitext(os.path.basename(path))[0]
+            parser = _new_parser()
+            try:
+                if not parser.read(path):
+                    warn(f"{path}: could not be read, skipped")
+                    continue
+                by_name[name] = Profile(name, path, parser)
+            except (ProfileError, configparser.Error, ValueError) as exc:
+                warn(f"{path}: {exc}; profile skipped")
+    return by_name
+
+
+def select_profile(profiles, dev):
+    caps = dev.capabilities()
+    keys = set(caps.get(e.EV_KEY, []))
+    axes = {code for code, _ in caps.get(e.EV_ABS, [])}
+    best = None
+    for name in sorted(profiles):
+        profile = profiles[name]
+        score = profile.match.score(keys, axes, dev.info, dev.name)
+        if score is None:
+            continue
+        score += profile.priority
+        if best is None or score > best[0]:
+            best = (score, profile)
+    return best[1] if best else None
+
+
+def is_gamepad(dev):
+    """A pad we could drive: has the gamepad button block and two stick axes."""
+    caps = dev.capabilities()
+    keys = caps.get(e.EV_KEY, [])
+    axes = [code for code, _ in caps.get(e.EV_ABS, [])]
+    return e.BTN_GAMEPAD in keys and e.ABS_X in axes and e.ABS_Y in axes
+
+
+def is_own_virtual_device(dev):
+    return (
+        dev.info.vendor == VIRTUAL_VENDOR and dev.info.product == VIRTUAL_PRODUCT
+    ) or dev.name == VIRTUAL_NAME
+
+
+def find_devices():
+    found = []
+    for path in sorted(list_devices()):
+        try:
+            dev = InputDevice(path)
+        except OSError:
+            continue
+        if is_gamepad(dev) and not is_own_virtual_device(dev):
+            found.append(dev)
+        else:
+            dev.close()
+    return found
+
+
+class Translator:
+    def __init__(self, source, profile, invert_left_y=False,
+                 invert_right_y=False, debug=False):
+        self.source = source
+        self.profile = profile
+        self.invert_left_y = invert_left_y
+        self.invert_right_y = invert_right_y
+        self.debug = debug
+
+        self.axes = dict(profile.axes)
+        self.buttons = dict(profile.buttons)
+        self.digital_triggers = dict(profile.digital_triggers)
+
+        self.absinfo = dict(source.capabilities().get(e.EV_ABS, []))
+        self.ui = UInput(
+            XBOX360_CAPS,
+            name=VIRTUAL_NAME,
+            vendor=VIRTUAL_VENDOR,
+            product=VIRTUAL_PRODUCT,
+            version=VIRTUAL_VERSION,
+            bustype=e.BUS_USB,
+            phys="usb-scuf-controller/input0",
+        )
+        self._analog_trigger = {e.ABS_Z: 0, e.ABS_RZ: 0}
+        self._digital_trigger = {e.ABS_Z: 0, e.ABS_RZ: 0}
+
+    def apply_overrides(self, buttons=None, axes=None):
+        """Local config wins over whatever the profile said."""
+        for src, dest in (buttons or {}).items():
+            self.digital_triggers.pop(src, None)
+            if dest is None:
+                self.buttons.pop(src, None)
+            else:
+                self.buttons[src] = dest
+        for src, mapping in (axes or {}).items():
+            if mapping is None:
+                self.axes.pop(src, None)
+            else:
+                self.axes[src] = mapping
+
+    def close(self):
+        self.ui.close()
+
+    def _scale(self, src_code, value, lo, hi):
+        info = self.absinfo.get(src_code)
+        if info is None or info.max == info.min:
+            return value
+        span = info.max - info.min
+        return int(round((value - info.min) * (hi - lo) / span)) + lo
+
+    def _emit_trigger(self, dest):
+        value = max(self._analog_trigger[dest], self._digital_trigger[dest])
+        self.ui.write(e.EV_ABS, dest, value)
+
+    def handle(self, event):
+        if event.type == e.EV_ABS:
+            mapping = self.axes.get(event.code)
+            if mapping is None:
+                return False
+            dest, kind = mapping
+            if kind == STICK:
+                value = self._scale(event.code, event.value, STICK_MIN, STICK_MAX)
+                if (dest == e.ABS_Y and self.invert_left_y) or (
+                    dest == e.ABS_RY and self.invert_right_y
+                ):
+                    # Reflects the full range exactly: -32768 <-> 32767.
+                    value = -value - 1
+                self.ui.write(e.EV_ABS, dest, value)
+            elif kind == TRIGGER:
+                value = self._scale(event.code, event.value,
+                                    TRIGGER_MIN, TRIGGER_MAX)
+                self._analog_trigger[dest] = value
+                self._emit_trigger(dest)
+            else:
+                self.ui.write(e.EV_ABS, dest, max(-1, min(1, event.value)))
+            if self.debug:
+                log(f"  {axis_name(event.code)}={event.value} "
+                    f"-> {axis_name(dest)}")
+            return True
+
+        if event.type == e.EV_KEY:
+            dest_axis = self.digital_triggers.get(event.code)
+            if dest_axis is not None:
+                self._digital_trigger[dest_axis] = TRIGGER_MAX if event.value else 0
+                self._emit_trigger(dest_axis)
+                if self.debug:
+                    log(f"  {button_name(event.code)}={event.value} "
+                        f"-> {axis_name(dest_axis)} (digital trigger)")
+                return True
+            dest = self.buttons.get(event.code)
+            if dest is None:
+                if self.debug:
+                    log(f"  {button_name(event.code)}={event.value} -> unmapped")
+                return False
+            self.ui.write(e.EV_KEY, dest, event.value)
+            if self.debug:
+                log(f"  {button_name(event.code)}={event.value} "
+                    f"-> {button_name(dest)}")
+            return True
+
+        return False
+
+    def syn(self):
+        self.ui.syn()
+
+
+def read_config(path):
+    cfg = {
+        "device": "",
+        "profile": "auto",
+        "invert_left_y": False,
+        "invert_right_y": False,
+        "button_overrides": {},
+        "axis_overrides": {},
+    }
+    parser = _new_parser()
+    if not parser.read(path):
+        return cfg
+
+    if parser.has_section("scuf-controller"):
+        section = parser["scuf-controller"]
+        cfg["device"] = section.get("device", "").strip()
+        cfg["profile"] = section.get("profile", "auto").strip()
+        for key in ("invert_left_y", "invert_right_y"):
+            raw = section.get(key, "").strip()
+            if raw:
+                cfg[key] = raw.lower() in ("1", "yes", "true", "on")
+
+    if parser.has_section("buttons"):
+        for src_name, raw in parser["buttons"].items():
+            try:
+                src = _parse_code(src_name, "BTN_", "config [buttons]")
+            except ProfileError as exc:
+                warn(f"{path}: {exc}, ignored")
+                continue
+            if raw.strip().lower() in ("", "none"):
+                cfg["button_overrides"][src] = None
+                continue
+            try:
+                dest = _parse_code(raw, "BTN_", "config [buttons]")
+            except ProfileError as exc:
+                warn(f"{path}: {exc}, ignored")
+                continue
+            if dest not in XBOX360_BUTTONS:
+                warn(f"{path}: {raw.strip()} is not an Xbox 360 button, ignored")
+                continue
+            cfg["button_overrides"][src] = dest
+
+    if parser.has_section("axes"):
+        for src_name, raw in parser["axes"].items():
+            try:
+                src = _parse_code(src_name, "ABS_", "config [axes]")
+            except ProfileError as exc:
+                warn(f"{path}: {exc}, ignored")
+                continue
+            if raw.strip().lower() in ("", "none"):
+                cfg["axis_overrides"][src] = None
+                continue
+            parts = raw.split()
+            if len(parts) != 2:
+                warn(f"{path}: [axes] {src_name} needs '<target> <kind>', ignored")
+                continue
+            try:
+                dest = _parse_code(parts[0], "ABS_", "config [axes]")
+            except ProfileError as exc:
+                warn(f"{path}: {exc}, ignored")
+                continue
+            kind = parts[1].strip().lower()
+            if kind not in KINDS or dest not in XBOX360_AXIS_CODES:
+                warn(f"{path}: [axes] {src_name} = {raw.strip()} is not a valid "
+                     f"Xbox 360 axis mapping, ignored")
+                continue
+            cfg["axis_overrides"][src] = (dest, kind)
+
+    return cfg
+
+
+def open_source(cfg):
+    if cfg["device"]:
+        try:
+            dev = InputDevice(cfg["device"])
+        except OSError as exc:
+            if exc.errno in (errno.ENOENT, errno.ENODEV):
+                return None
+            raise
+        return dev
+    devices = find_devices()
+    if not devices:
+        return None
+    chosen = devices[0]
+    for extra in devices[1:]:
+        extra.close()
+    return chosen
+
+
+def resolve_profile(profiles, dev, wanted):
+    if wanted and wanted.lower() != "auto":
+        profile = profiles.get(wanted)
+        if profile is None:
+            warn(f"no profile named {wanted!r}; falling back to auto-detection")
+        else:
+            return profile
+    return select_profile(profiles, dev)
+
+
+def run_once(cfg, profiles, debug):
+    source = open_source(cfg)
+    if source is None:
+        return False
+
+    profile = resolve_profile(profiles, source, cfg["profile"])
+    if profile is None:
+        log(f"{source.path} ({source.name}) matches no profile; "
+            f"see --dump-profile to write one")
+        source.close()
+        time.sleep(5)
+        return True
+
+    log(f"using {source.path} ({source.name}) "
+        f"[{source.info.vendor:04x}:{source.info.product:04x}] "
+        f"profile={profile.name}")
+
+    try:
+        source.grab()
+    except OSError as exc:
+        log(f"could not grab {source.path}: {exc}")
+        source.close()
+        return False
+
+    translator = Translator(
+        source,
+        profile,
+        invert_left_y=cfg["invert_left_y"],
+        invert_right_y=cfg["invert_right_y"],
+        debug=debug,
+    )
+    translator.apply_overrides(cfg["button_overrides"], cfg["axis_overrides"])
+    log(f"presenting virtual pad: {VIRTUAL_NAME} "
+        f"[{VIRTUAL_VENDOR:04x}:{VIRTUAL_PRODUCT:04x}]")
+
+    sel = selectors.DefaultSelector()
+    sel.register(source.fd, selectors.EVENT_READ)
+    try:
+        while True:
+            if not sel.select(timeout=1.0):
+                continue
+            dirty = False
+            try:
+                for event in source.read():
+                    if event.type == e.EV_SYN:
+                        if dirty:
+                            translator.syn()
+                            dirty = False
+                        continue
+                    dirty |= translator.handle(event)
+            except BlockingIOError:
+                continue
+            except OSError as exc:
+                if exc.errno in (errno.ENODEV, errno.EIO):
+                    log("controller disconnected")
+                    return True
+                raise
+            if dirty:
+                translator.syn()
+    finally:
+        sel.close()
+        translator.close()
+        try:
+            source.ungrab()
+        except OSError:
+            pass
+        source.close()
+
+
+def cmd_list(profiles):
+    devices = find_devices()
+    if not devices:
+        log("no gamepads found")
+        return 1
+    for dev in devices:
+        profile = select_profile(profiles, dev)
+        log(f"{dev.path}  {dev.name}  "
+            f"[{dev.info.vendor:04x}:{dev.info.product:04x}]  "
+            f"profile={profile.name if profile else '(none - see --dump-profile)'}")
+        dev.close()
+    return 0
+
+
+def cmd_dump_profile(profiles, cfg):
+    """Emit a starter profile for the connected pad, prefilled where possible."""
+    dev = open_source(cfg)
+    if dev is None:
+        warn("no gamepad found")
+        return 1
+    caps = dev.capabilities()
+    keys = sorted(caps.get(e.EV_KEY, []))
+    axes = sorted(caps.get(e.EV_ABS, []))
+    base = select_profile(profiles, dev)
+
+    out = []
+    out.append(f"# Starter profile for {dev.name} "
+               f"[{dev.info.vendor:04x}:{dev.info.product:04x}]")
+    out.append("#")
+    if base:
+        out.append(f"# Prefilled from the closest existing profile, {base.name!r}.")
+        out.append("# Check every line against the real pad before trusting it:")
+    else:
+        out.append("# No existing profile fits this pad, so the mappings below are")
+        out.append("# only a guess. Fill in the TODOs:")
+    out.append("#     sudo systemctl stop scuf-controller")
+    out.append("#     sudo scuf-controller --debug")
+    out.append("#")
+    out.append("# Save as /etc/scuf-controller.d/<name>.conf and restart the service.")
+    out.append("")
+    out.append("[profile]")
+    out.append(f"description = {dev.name}")
+    out.append("")
+    out.append("[match]")
+    out.append(f"vendor = {dev.info.vendor:04x}")
+    out.append(f"product = {dev.info.product:04x}")
+    out.append("")
+    out.append("[axes]")
+    for code, info in axes:
+        mapping = base.axes.get(code) if base else None
+        if mapping:
+            out.append(f"{canonical_axis(code)} = "
+                       f"{canonical_axis(mapping[0])} {mapping[1]}"
+                       f"    # range {info.min}..{info.max}")
+        else:
+            guess = HAT if info.min == -1 and info.max == 1 else STICK
+            out.append(f"# {canonical_axis(code)} = TODO {guess}"
+                       f"    # range {info.min}..{info.max}")
+    out.append("")
+    out.append("[buttons]")
+    for code in keys:
+        name = axis = None
+        if base:
+            name = base.buttons.get(code)
+            axis = base.digital_triggers.get(code)
+        if axis is not None:
+            out.append(f"# {canonical_button(code)} -> "
+                       f"{canonical_axis(axis)}, see [digital-triggers]")
+        elif name is not None:
+            out.append(f"{canonical_button(code)} = "
+                       f"{canonical_button(name, target=True)}")
+        else:
+            out.append(f"# {canonical_button(code)} = TODO")
+    out.append("")
+    out.append("[digital-triggers]")
+    if base and base.digital_triggers:
+        for src, dest in sorted(base.digital_triggers.items()):
+            out.append(f"{canonical_button(src)} = {canonical_axis(dest)}")
+    else:
+        out.append("# BTN_TL = ABS_Z")
+        out.append("# BTN_TR = ABS_RZ")
+    dev.close()
+    print("\n".join(out))
+    return 0
+
+
+def cmd_list_profiles(profiles):
+    if not profiles:
+        log(f"no profiles found in {' or '.join(PROFILE_DIRS)}")
+        return 1
+    for name in sorted(profiles):
+        profile = profiles[name]
+        log(f"{name:<22} {profile.description or '(no description)'}")
+        log(f"{'':<22} {profile.path}")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Map a DualShock-style gamepad to a virtual Xbox 360 controller."
+    )
+    ap.add_argument("-c", "--config", default=CONFIG_PATH,
+                    help=f"config file (default: {CONFIG_PATH})")
+    ap.add_argument("-d", "--device", help="event device to use (overrides config)")
+    ap.add_argument("-p", "--profile", help="profile name (overrides config)")
+    ap.add_argument("--profile-dir", action="append", metavar="DIR",
+                    help="load profiles from DIR instead of the system directories "
+                         "(may be repeated)")
+    ap.add_argument("-l", "--list", action="store_true",
+                    help="list detected gamepads and exit")
+    ap.add_argument("--list-profiles", action="store_true",
+                    help="list available profiles and exit")
+    ap.add_argument("--dump-profile", action="store_true",
+                    help="print a starter profile for the connected pad and exit")
+    ap.add_argument("--debug", action="store_true",
+                    help="log every translated event")
+    args = ap.parse_args()
+
+    profiles = load_profiles(args.profile_dir or PROFILE_DIRS)
+
+    if args.list_profiles:
+        return cmd_list_profiles(profiles)
+    if args.list:
+        return cmd_list(profiles)
+
+    cfg = read_config(args.config)
+    if args.device:
+        cfg["device"] = args.device
+    if args.profile:
+        cfg["profile"] = args.profile
+
+    if args.dump_profile:
+        return cmd_dump_profile(profiles, cfg)
+
+    if os.geteuid() != 0:
+        warn("must run as root (needs /dev/uinput and exclusive access to the pad)")
+        return 1
+    if not profiles:
+        warn(f"no profiles found in {' or '.join(PROFILE_DIRS)}")
+        return 1
+
+    running = {"stop": False}
+
+    def stop(signum, frame):
+        running["stop"] = True
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+
+    waiting_logged = False
+    try:
+        while not running["stop"]:
+            try:
+                had_device = run_once(cfg, profiles, args.debug)
+            except KeyboardInterrupt:
+                break
+            if had_device:
+                waiting_logged = False
+                continue
+            if not waiting_logged:
+                log("waiting for a controller...")
+                waiting_logged = True
+            time.sleep(2)
+    except KeyboardInterrupt:
+        pass
+    log("exiting")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,25 @@
+post_install() {
+	cat <<'MSG'
+==> scuf-controller is installed but not started. Enable it with:
+==>     sudo systemctl enable --now scuf-controller
+==>
+==> Check that your pad is recognised first:
+==>     scuf-controller --list
+==>
+==> If it matches no profile, generate one:
+==>     scuf-controller --dump-profile > /etc/scuf-controller.d/mypad.conf
+MSG
+}
+
+post_upgrade() {
+	# Profiles moved out of the daemon in 2.1; a pinned profile name in
+	# scuf-controller.conf from 2.0 ("generic" / "sony") no longer resolves.
+	if [ -n "$2" ] && [ "$(vercmp "$2" 2.1)" -lt 0 ]; then
+		cat <<'MSG'
+==> Layouts are now profile files in /usr/share/scuf-controller/profiles.
+==> If you pinned `profile = generic` or `profile = sony` in
+==> /etc/scuf-controller.conf, change it to `generic-dualshock` or
+==> `sony-dualshock`, or set it back to `auto`.
+MSG
+	fi
+}

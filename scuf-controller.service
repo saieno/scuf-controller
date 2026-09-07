@@ -1,0 +1,30 @@
+[Unit]
+Description=Map a DualShock-style gamepad to a virtual Xbox 360 controller
+Documentation=https://github.com/saieno/scuf-controller
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStartPre=-/sbin/modprobe uinput
+ExecStart=/usr/bin/scuf-controller
+Restart=always
+RestartSec=2
+
+# The daemon needs the input devices and /dev/uinput, and nothing else.
+DevicePolicy=closed
+DeviceAllow=/dev/uinput rw
+DeviceAllow=char-input rw
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

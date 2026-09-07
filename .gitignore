@@ -1,0 +1,7 @@
+# dpkg-buildpackage leaves these in the source tree
+debian/.debhelper/
+debian/scuf-controller/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/*.debhelper

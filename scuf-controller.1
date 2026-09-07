@@ -1,0 +1,163 @@
+.TH SCUF\-CONTROLLER 1 "September 2026" "scuf-controller 2.1" "User Commands"
+.SH NAME
+scuf\-controller \- present a DualShock\-style gamepad as an Xbox 360 controller
+.SH SYNOPSIS
+.B scuf\-controller
+.RI [ options ]
+.SH DESCRIPTION
+.B scuf\-controller
+reads a SCUF, DualShock or generic DualShock\-clone gamepad, takes exclusive
+control of it, and re\-emits corrected events on a virtual input device that
+identifies itself as a Microsoft Xbox 360 pad (USB 045e:028e). Games and
+launchers that only understand XInput then see the expected buttons and axes.
+.PP
+Because the physical device is grabbed, its raw events stop reaching other
+applications. This is what prevents the duplicated input these controllers
+otherwise produce; no deletion of
+.I /dev/input/js0
+is required.
+.PP
+The daemon is normally run by the
+.B scuf\-controller.service
+systemd unit rather than invoked by hand. It waits for a controller to appear,
+and reconnects automatically when one is unplugged and plugged back in.
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-config " " \fIFILE\fR
+Read configuration from \fIFILE\fR instead of \fI/etc/scuf\-controller.conf\fR.
+.TP
+.BR \-d ", " \-\-device " " \fIPATH\fR
+Use the event device at \fIPATH\fR instead of auto\-detecting one. Overrides
+the config file.
+.TP
+.BR \-p ", " \-\-profile " " \fINAME\fR
+Use the named profile instead of auto\-detecting one. Overrides the config
+file. See
+.B \-\-list\-profiles
+for the installed names.
+.TP
+.BR \-\-profile\-dir " " \fIDIR\fR
+Load profiles from \fIDIR\fR instead of the system directories. May be repeated.
+Use it to try a profile before installing it.
+.TP
+.BR \-l ", " \-\-list
+List detected gamepads with their device node, USB ids and the profile that
+would be chosen, then exit. Does not require root.
+.TP
+.B \-\-list\-profiles
+List the installed profiles and where each was loaded from, then exit.
+.TP
+.B \-\-dump\-profile
+Print a starter profile for the connected pad and exit. If an existing profile
+partly fits, the output is prefilled from it and the rest marked TODO.
+.TP
+.B \-\-debug
+Log every translated event, including ones that are unmapped. Use this to check
+the mapping control by control.
+.SH PROFILES
+A profile describes one controller's layout. Profiles are read from
+.I /usr/share/scuf-controller/profiles
+and then
+.IR /etc/scuf-controller.d ,
+with a file in the latter shadowing a shipped file of the same name. The
+profile name is the filename without its \fI.conf\fR suffix.
+.PP
+Each profile has an optional
+.B [profile]
+section holding a
+.I description
+and a
+.I priority
+tiebreaker, a
+.B [match]
+section deciding which pads it applies to, and
+.BR [axes] ,
+.B [buttons]
+and
+.B [digital-triggers]
+sections describing the mapping.
+.SS Matching
+.B [match]
+accepts
+.I vendor
+and
+.I product
+(four hex digits),
+.I name
+(a regular expression matched against the device name),
+.I buttons
+and
+.I axes
+(codes the pad must report), and
+.I not_buttons
+(codes it must not). Every stated condition must hold. Among the profiles that
+match, the most specific wins: a USB id counts for far more than a name
+pattern, which counts for more than a capability requirement.
+.SS Mappings
+.B [axes]
+lines read \fIsource = target kind\fR, where \fIkind\fR is
+.BR stick ", " trigger " or " hat
+and decides how the source range is rescaled: sticks to \-32768..32767,
+triggers to 0..255, hats to \-1..1.
+.B [buttons]
+lines read \fIsource = target\fR.
+.B [digital-triggers]
+lines map a button to a trigger axis, for pads that report a digital
+"trigger down" bit alongside the analog value; the harder of the two wins.
+.SS Adding a controller
+.RS
+.B sudo systemctl stop scuf\-controller
+.br
+.B scuf\-controller \-\-dump\-profile > /etc/scuf\-controller.d/mypad.conf
+.br
+.B sudo scuf\-controller \-\-debug
+.RE
+.PP
+Correct the file against what
+.B \-\-debug
+prints, then restart the service. Adding the pad's USB ids to
+.I /etc/udev/rules.d/60-scuf-controller.rules
+stops it being enumerated alongside the virtual pad.
+.SH FILES
+.TP
+.I /etc/scuf-controller.conf
+Device selection, profile choice, stick inversion, and local button and axis
+overrides applied on top of the profile.
+.TP
+.I /etc/scuf-controller.d/*.conf
+Your profiles. Shadow a shipped profile by reusing its filename.
+.TP
+.I /usr/share/scuf-controller/profiles/*.conf
+Profiles shipped with the package. Do not edit; they are replaced on upgrade.
+.TP
+.I /usr/lib/udev/rules.d/60-scuf-controller.rules
+Hides the physical pad from gamepad enumeration so it does not appear
+alongside the virtual one. Shadow it with a file of the same name in
+.I /etc/udev/rules.d
+to change or disable it.
+.SH EXAMPLES
+Identify the connected pads and the profile each would use:
+.PP
+.RS
+.B scuf\-controller \-\-list
+.RE
+.PP
+Try a profile without installing it:
+.PP
+.RS
+.B sudo scuf\-controller \-\-profile\-dir ./profiles \-\-debug
+.RE
+.SH NOTES
+The virtual pad reports X as BTN_X (0x133) and Y as BTN_Y (0x134). Those codes
+are aliases for BTN_NORTH and BTN_WEST, which is positionally backwards from
+the modern semantic names, but it is exactly what the kernel's
+.BR xpad (4)
+driver does and what controller databases expect from an Xbox pad. Profiles are
+written with the physical pad in semantic terms and the Xbox output in Xbox
+terms, so a line such as \fIBTN_SOUTH = BTN_X\fR is correct and not a typo.
+.SH SEE ALSO
+.BR systemctl (1),
+.BR udev (7),
+.BR evtest (1)
+.SH AUTHOR
+Saieno <saieno86@gmail.com>
